@@ -6,6 +6,8 @@ greenlet==3.5.5
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
-SQLAlchemy==2.0.52
+Flask
+Flask-SQLAlchemy
+gunicorn
 typing_extensions==4.16.0
 Werkzeug==3.1.8
