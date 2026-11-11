@@ -179,7 +179,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 @media(max-width:520px){body{padding:10px}.card{margin:10px auto}.registration-banner{padding:30px 18px 24px}.form-content{padding:21px 17px}}
 </style></head>
 <body><main class="card">
-<header class="registration-banner"><div class="brand">GLOBAL SCHOLARSHIP HUB</div>
+<header class="registration-banner"><div class="brand">APPLICANT REGISTRATION</div>
 <h1>Applicant Registration</h1>
 <p class="intro">This form is for students who have already applied for a scholarship. Please enter your details carefully.</p></header>
 <div class="form-content">
