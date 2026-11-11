@@ -189,7 +189,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
 <div class="wave-title">Wave Payment Only</div>
 <div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "D500" if selected_degree == "Bachelor's" else "D800" if selected_degree == "Master's" else "D1,300" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
-<a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{wave_url or '#'}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_blank" rel="noopener noreferrer">Pay with Wave</a>
+<a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{wave_url or '#'}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_self">Pay with Wave</a>
 </div>
 <button type="submit">Submit Registration</button>
 </form>
