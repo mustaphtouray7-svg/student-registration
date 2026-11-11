@@ -19,19 +19,40 @@ elif database_url.startswith("postgresql://"):
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") == "production",
+)
 db = SQLAlchemy(app)
 
+
 class Student(db.Model):
+    """Legacy table retained so older registration records are not destroyed."""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    # Retained for compatibility with the previous schema; no email is collected.
     email = db.Column(db.String(100), nullable=False, default="")
     phone = db.Column(db.String(30), nullable=False)
 
+
+class ScholarshipApplicant(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(80), nullable=False)
+    second_name = db.Column(db.String(80), nullable=False)
+    phone = db.Column(db.String(30), nullable=False)
+    country = db.Column(db.String(100), nullable=False)
+    program = db.Column(db.String(150), nullable=False)
+    degree = db.Column(db.String(20), nullable=False)
+    application_reference = db.Column(db.String(100), nullable=True)
+    wave_transaction_reference = db.Column(db.String(100), nullable=True)
+    payment_method = db.Column(db.String(20), nullable=False, default="Wave")
+    payment_status = db.Column(db.String(20), nullable=False, default="Pending")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+
 with app.app_context():
     db.create_all()
+
 
 def csrf_token():
     token = session.get("_csrf_token")
@@ -40,9 +61,12 @@ def csrf_token():
         session["_csrf_token"] = token
     return token
 
+
 def csrf_valid():
-    return bool(session.get("_csrf_token") and request.form.get("_csrf_token") and
-                hmac.compare_digest(session["_csrf_token"], request.form["_csrf_token"]))
+    submitted = request.form.get("_csrf_token", "")
+    stored = session.get("_csrf_token", "")
+    return bool(submitted and stored and hmac.compare_digest(stored, submitted))
+
 
 def admin_required(view):
     @wraps(view)
@@ -52,6 +76,7 @@ def admin_required(view):
         return view(*args, **kwargs)
     return wrapped
 
+
 @app.after_request
 def security_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -59,96 +84,191 @@ def security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
+
 @app.route("/", methods=["GET", "POST"])
 def register():
     message = error = None
+    wave_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
     if request.method == "POST":
         if not csrf_valid():
             error = "Your session expired. Refresh the page and try again."
         else:
-            name = request.form.get("name", "").strip()
+            first_name = request.form.get("first_name", "").strip()
+            second_name = request.form.get("second_name", "").strip()
             phone = request.form.get("phone", "").strip()
-            if not name or len(name) > 100:
-                error = "Enter a valid full name (maximum 100 characters)."
+            country = request.form.get("country", "").strip()
+            program = request.form.get("program", "").strip()
+            degree = request.form.get("degree", "").strip()
+            application_reference = request.form.get("application_reference", "").strip()
+            wave_reference = request.form.get("wave_transaction_reference", "").strip()
+
+            if not first_name or len(first_name) > 80:
+                error = "Enter a valid first name (maximum 80 characters)."
+            elif not second_name or len(second_name) > 80:
+                error = "Enter a valid second name (maximum 80 characters)."
             elif not phone or len(phone) > 30:
                 error = "Enter a valid phone number (maximum 30 characters)."
+            elif not country or len(country) > 100:
+                error = "Enter the country you applied to."
+            elif not program or len(program) > 150:
+                error = "Enter the scholarship program you applied for."
+            elif degree not in {"Bachelor's", "Master's", "PhD"}:
+                error = "Choose Bachelor's, Master's, or PhD."
+            elif len(application_reference) > 100 or len(wave_reference) > 100:
+                error = "Reference numbers must be 100 characters or fewer."
             else:
-                db.session.add(Student(name=name, email="", phone=phone))
+                applicant = ScholarshipApplicant(
+                    first_name=first_name,
+                    second_name=second_name,
+                    phone=phone,
+                    country=country,
+                    program=program,
+                    degree=degree,
+                    application_reference=application_reference or None,
+                    wave_transaction_reference=wave_reference or None,
+                    payment_method="Wave",
+                    payment_status="Pending",
+                )
+                db.session.add(applicant)
                 db.session.commit()
-                message = "Registration successful. Thank you!"
+                message = "Your registration has been received successfully."
     return render_template_string("""
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Registration Form</title><style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;font-family:Arial,sans-serif;background:linear-gradient(135deg,#eaf3ff,#f7faff);color:#17243a}
-.card{width:100%;max-width:430px;background:white;padding:32px;border-radius:18px;box-shadow:0 14px 45px #1946821f}
-h1{text-align:center;color:#1456a0;margin:0 0 8px}.intro{text-align:center;color:#66758a;margin:0 0 26px}
-label{display:block;margin:17px 0 8px;font-weight:700}input{width:100%;padding:14px;border:1px solid #d5deea;border-radius:9px;font-size:16px}
-input:focus{outline:2px solid #2376d2}button{width:100%;margin-top:24px;padding:14px;border:0;border-radius:9px;background:#1768bd;color:white;font-size:16px;font-weight:700;cursor:pointer}
-.notice{padding:12px;border-radius:8px;margin:16px 0}.success{background:#e8f7ed;color:#176334}.error{background:#fff0ef;color:#a12a22}
-.admin{display:block;margin-top:22px;text-align:center;color:#1768bd}
-</style></head><body><main class="card"><h1>Registration</h1><p class="intro">Please enter your details below.</p>
-{% if message %}<div class="notice success" role="status">{{message}}</div>{% endif %}{% if error %}<div class="notice error" role="alert">{{error}}</div>{% endif %}
-<form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}">
-<label for="name">Full Name</label><input id="name" name="name" type="text" maxlength="100" placeholder="Enter your full name" autocomplete="name" required>
-<label for="phone">Phone Number</label><input id="phone" name="phone" type="tel" maxlength="30" placeholder="Enter your phone number" autocomplete="tel" required>
-<button type="submit">Register</button></form><a class="admin" href="{{url_for('admin_login')}}">Admin login</a></main></body></html>
-""",message=message,error=error,token=csrf_token())
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Scholarship Hub | Applicant Registration</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:linear-gradient(135deg,#eaf3ff,#f7faff);font-family:Arial,sans-serif;color:#17243a}
+.card{max-width:620px;margin:24px auto;background:#fff;padding:30px;border-radius:18px;box-shadow:0 14px 45px #1946821f}
+.brand{text-align:center;color:#1768bd;font-size:13px;font-weight:800;letter-spacing:1.3px}
+h1{text-align:center;color:#1456a0;margin:8px 0}.intro{text-align:center;color:#66758a;line-height:1.5;margin:0 0 24px}
+h2{font-size:17px;color:#1456a0;margin:25px 0 12px;border-bottom:1px solid #e6edf5;padding-bottom:9px}
+label{display:block;margin:14px 0 7px;font-weight:700;font-size:14px}
+input,select{width:100%;padding:13px;border:1px solid #d5deea;border-radius:9px;font-size:16px;background:#fff;color:#17243a}
+input:focus,select:focus{outline:2px solid #2376d2}
+.hint{font-size:12px;color:#718096;margin-top:5px}
+.wave{border:1px solid #cfe9dc;background:#f3fbf6;padding:16px;border-radius:12px;margin-top:10px}
+.wave-title{font-weight:800;color:#167447;display:flex;align-items:center;gap:8px}
+.wave p{font-size:13px;color:#526579;line-height:1.5}
+.pay{display:block;text-align:center;text-decoration:none;background:#16a66a;color:#fff;padding:13px;border-radius:9px;font-weight:800}
+.pay.disabled{background:#9bb8a8;pointer-events:none}
+button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;background:#1768bd;color:white;font-size:16px;font-weight:800;cursor:pointer}
+.notice{padding:13px;border-radius:9px;margin:16px 0;line-height:1.4}.success{background:#e8f7ed;color:#176334}.error{background:#fff0ef;color:#a12a22}
+.admin{display:block;margin-top:22px;text-align:center;color:#1768bd;font-size:13px}
+@media(max-width:520px){body{padding:10px}.card{padding:21px 17px;margin:10px auto}}
+</style></head>
+<body><main class="card">
+<div class="brand">GLOBAL SCHOLARSHIP HUB</div>
+<h1>Applicant Registration</h1>
+<p class="intro">This form is for students who have already applied for a scholarship. Please enter your details carefully.</p>
+{% if message %}<div class="notice success" role="status">{{message}}</div>{% endif %}
+{% if error %}<div class="notice error" role="alert">{{error}}</div>{% endif %}
+<form method="POST" action="/">
+<input type="hidden" name="_csrf_token" value="{{token}}">
+<h2>Personal Information</h2>
+<label for="first_name">First Name</label><input id="first_name" name="first_name" maxlength="80" autocomplete="given-name" required>
+<label for="second_name">Second Name</label><input id="second_name" name="second_name" maxlength="80" autocomplete="family-name" required>
+<label for="phone">Phone Number</label><input id="phone" name="phone" type="tel" maxlength="30" placeholder="Include country code" autocomplete="tel" required>
+<h2>Scholarship Application</h2>
+<label for="country">Country Applied To</label><input id="country" name="country" maxlength="100" placeholder="Enter the country" required>
+<label for="program">Program Applied For</label><input id="program" name="program" maxlength="150" placeholder="Enter your course or program" required>
+<label for="degree">Degree Level</label>
+<select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's">Bachelor's Degree</option><option value="Master's">Master's Degree</option><option value="PhD">PhD</option></select>
+<label for="application_reference">Application Reference Number <span class="hint">(optional)</span></label>
+<input id="application_reference" name="application_reference" maxlength="100" placeholder="Your university application ID">
+<h2>Payment</h2>
+<div class="wave"><div class="wave-title">● Wave Payment Only</div>
+<p>Use the Wave button below to make your payment. If you have already paid, enter your Wave transaction reference below.</p>
+{% if wave_url %}<a class="pay" href="{{wave_url}}" target="_blank" rel="noopener noreferrer">Pay with Wave</a>
+{% else %}<span class="pay disabled">Wave payment link will be added shortly</span>{% endif %}
+</div>
+<label for="wave_transaction_reference">Wave Transaction Reference <span class="hint">(optional)</span></label>
+<input id="wave_transaction_reference" name="wave_transaction_reference" maxlength="100" placeholder="Enter transaction ID if already paid">
+<button type="submit">Submit Registration</button>
+</form>
+<a class="admin" href="{{url_for('admin_login')}}">Admin Login</a>
+</main></body></html>
+""", message=message, error=error, token=csrf_token(), wave_url=wave_url)
 
-@app.route("/admin/login", methods=["GET","POST"])
+
+@app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     error = None
-    configured_user, configured_password = os.environ.get("ADMIN_USERNAME"), os.environ.get("ADMIN_PASSWORD")
+    configured_user = os.environ.get("ADMIN_USERNAME")
+    configured_password = os.environ.get("ADMIN_PASSWORD")
     if not configured_user or not configured_password:
         return "Admin login is not configured.", 503
     if request.method == "POST":
         if not csrf_valid():
             error = "Your session expired. Refresh and try again."
         else:
-            username, password = request.form.get("username",""), request.form.get("password","")
-            if hmac.compare_digest(username,configured_user) and hmac.compare_digest(password,configured_password):
+            username = request.form.get("username", "")
+            password = request.form.get("password", "")
+            if hmac.compare_digest(username, configured_user) and hmac.compare_digest(password, configured_password):
                 session.clear()
                 session["is_admin"] = True
                 session["_csrf_token"] = secrets.token_urlsafe(32)
                 return redirect(url_for("admin"))
             error = "Incorrect username or password."
     return render_template_string("""
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Login</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login | Global Scholarship Hub</title>
 <style>body{font-family:Arial;background:#edf4fc;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}.card{background:white;padding:30px;border-radius:16px;width:100%;max-width:390px;box-shadow:0 12px 36px #173b641a}h1{color:#1456a0;margin-top:0}label{display:block;margin:16px 0 7px;font-weight:bold}input{width:100%;padding:13px;border:1px solid #ccd7e5;border-radius:8px;box-sizing:border-box;font-size:16px}button{width:100%;padding:13px;margin-top:22px;border:0;border-radius:8px;background:#1768bd;color:white;font-weight:bold;font-size:16px}.error{background:#fff0ef;color:#a12a22;padding:10px;border-radius:8px}a{display:block;text-align:center;margin-top:18px;color:#1768bd}</style></head>
 <body><main class="card"><h1>Admin Login</h1>{% if error %}<p class="error">{{error}}</p>{% endif %}
 <form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required>
 <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">Log In</button></form><a href="/">Back to registration</a></main></body></html>
-""",error=error,token=csrf_token())
+""", error=error, token=csrf_token())
+
 
 @app.route("/admin")
 @admin_required
 def admin():
-    students = Student.query.order_by(Student.id.desc()).all()
+    applicants = ScholarshipApplicant.query.order_by(ScholarshipApplicant.created_at.desc()).all()
+    legacy_count = Student.query.count()
     return render_template_string("""
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard</title>
-<style>body{font-family:Arial;margin:0;padding:24px;background:#f5f8fc;color:#17243a}.wrap{max-width:1000px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{color:#1456a0}table{width:100%;border-collapse:collapse;background:white;margin-top:20px}th,td{padding:13px;text-align:left;border-bottom:1px solid #e4eaf1}th{background:#1768bd;color:white}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:white;cursor:pointer}a{color:#1768bd}@media(max-width:600px){body{padding:14px}th,td{padding:9px;font-size:14px}}</style></head>
-<body><main class="wrap"><div class="top"><div><h1>Admin Dashboard</h1><p>{{students|length}} registration(s)</p></div>
-<form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Log Out</button></form></div>
-{% if students %}<table><thead><tr><th>#</th><th>Full Name</th><th>Phone Number</th><th>Action</th></tr></thead><tbody>
-{% for student in students %}<tr><td>{{student.id}}</td><td>{{student.name}}</td><td>{{student.phone}}</td><td><form method="POST" action="{{url_for('delete_student',student_id=student.id)}}" onsubmit="return confirm('Delete this registration?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form></td></tr>{% endfor %}
-</tbody></table>{% else %}<p class="empty">No registrations yet.</p>{% endif %}<p><a href="/">Open registration form</a></p></main></body></html>
-""",students=students,token=csrf_token())
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Applicant Dashboard | Global Scholarship Hub</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;padding:22px;background:#f5f8fc;color:#17243a}.wrap{max-width:1200px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{color:#1456a0}
+.table-wrap{overflow-x:auto;background:white;border-radius:12px;margin-top:20px}table{width:100%;border-collapse:collapse;min-width:1050px}
+th,td{padding:12px;text-align:left;border-bottom:1px solid #e4eaf1;font-size:13px}th{background:#1768bd;color:white}
+button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:white;cursor:pointer}
+.logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
+.pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
+</style></head><body><main class="wrap">
+<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s)</p></div>
+<form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
+{% if applicants %}<div class="table-wrap"><table><thead><tr>
+<th>#</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Application Ref.</th><th>Wave Ref.</th><th>Payment</th><th>Registered</th><th>Action</th>
+</tr></thead><tbody>
+{% for a in applicants %}<tr><td>{{a.id}}</td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td>{{a.application_reference or "—"}}</td><td>{{a.wave_transaction_reference or "—"}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
+<form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
+</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
+<p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
+<p><a href="/">Open applicant registration form</a></p></main></body></html>
+""", applicants=applicants, legacy_count=legacy_count, token=csrf_token())
 
-@app.route("/admin/logout",methods=["POST"])
+
+@app.route("/admin/logout", methods=["POST"])
 @admin_required
 def admin_logout():
-    if not csrf_valid(): return "Invalid request token.",400
+    if not csrf_valid():
+        return "Invalid request token.", 400
     session.clear()
     return redirect(url_for("admin_login"))
 
-@app.route("/delete/<int:student_id>",methods=["POST"])
+
+@app.route("/admin/applicant/<int:applicant_id>/delete", methods=["POST"])
 @admin_required
-def delete_student(student_id):
-    if not csrf_valid(): return "Invalid request token.",400
-    student = db.session.get(Student,student_id)
-    if student:
-        db.session.delete(student)
+def delete_applicant(applicant_id):
+    if not csrf_valid():
+        return "Invalid request token.", 400
+    applicant = db.session.get(ScholarshipApplicant, applicant_id)
+    if applicant:
+        db.session.delete(applicant)
         db.session.commit()
     return redirect(url_for("admin"))
+
 
 if __name__ == "__main__":
     app.run(debug=False)
