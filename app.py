@@ -332,8 +332,16 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 .logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
 .pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
 </style></head><body><main class="wrap">
-<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s) · {{visitors|length}} unique visitor(s)</p></div>
+<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta"><strong>{{visitors|length}} page visit(s)</strong> · {{applicants|length}} applicant registration(s)</p></div>
 <form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
+<h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
+<p class="meta">Every opening of the Applicant Registration page is listed below. Visitor numbers are anonymous; no IP addresses are collected.</p>
+{% if visitors %}<div class="table-wrap"><table style="min-width:720px"><thead><tr>
+<th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visit Count</th><th>Last Page</th>
+</tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%Y-%m-%d %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%Y-%m-%d %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty">No website visits recorded yet. New visits will appear here.</p>{% endif %}
+<p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
 {% if applicants %}<div class="table-wrap"><table><thead><tr>
 <th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Payment</th><th>Registered</th><th>Action</th>
 </tr></thead><tbody>
@@ -341,14 +349,7 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 <form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
 </td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
 
-<h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
-<p class="meta">Unique browsers that opened the applicant registration page. Repeat visits are counted. No IP addresses are collected.</p>
-{% if visitors %}<div class="table-wrap"><table style="min-width:720px"><thead><tr>
-<th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visit Count</th><th>Last Page</th>
-</tr></thead><tbody>
-{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%Y-%m-%d %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%Y-%m-%d %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
-</tbody></table></div>{% else %}<p class="empty">No website visits recorded yet. New visits will appear here.</p>{% endif %}
-<p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
+
 <p><a href="/">Open applicant registration form</a></p></main></body></html>
 """, applicants=applicants, legacy_count=legacy_count, token=csrf_token())
 
