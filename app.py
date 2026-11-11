@@ -332,7 +332,7 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 .logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
 .pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
 </style></head><body><main class="wrap">
-<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta"><strong>{{visitors|length}} page visit(s)</strong> · {{applicants|length}} applicant registration(s)</p></div>
+<div class="top"><div><h1>Global Scholarship Hub</h1><p><a href="{{url_for('admin_visitors')}}" style="display:inline-block;background:#1768bd;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold">OPEN WEBSITE VISITORS ({{visitors|length}})</a></p><p class="meta"><strong>{{visitors|length}} page visit(s)</strong> · {{applicants|length}} applicant registration(s)</p></div>
 <form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
 <h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
 <p class="meta">Every opening of the Applicant Registration page is listed below. Visitor numbers are anonymous; no IP addresses are collected.</p>
@@ -352,6 +352,35 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 
 <p><a href="/">Open applicant registration form</a></p></main></body></html>
 """, applicants=applicants, legacy_count=legacy_count, token=csrf_token())
+
+
+@app.route("/admin/visitors")
+@admin_required
+def admin_visitors():
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
+    return render_template_string("""
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website Visitors | Global Scholarship Hub</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:18px;background:#f2f6fc;color:#17243a}
+main{max-width:900px;margin:auto}.heading{background:#1456a0;color:white;padding:22px;border-radius:14px}
+.heading h1{margin:0 0 8px;font-size:25px}.count{font-size:18px;font-weight:bold}
+.back{display:inline-block;margin:18px 0;padding:13px 17px;background:#1768bd;color:white;text-decoration:none;border-radius:9px;font-weight:bold}
+.note{background:#e6f0ff;padding:13px;border-radius:9px;line-height:1.5}
+table{width:100%;border-collapse:collapse;background:white;margin-top:16px}
+th,td{padding:13px 10px;text-align:left;border-bottom:1px solid #e3eaf3;font-size:14px}
+th{background:#1768bd;color:white}.tablebox{overflow-x:auto;border-radius:10px}
+@media(max-width:600px){body{padding:10px}.heading h1{font-size:21px}th,td{font-size:12px;padding:11px 8px}}
+</style></head><body><main>
+<section class="heading"><h1>GLOBAL SCHOLARSHIP HUB</h1><div class="count">{{visitors|length}} WEBSITE VISIT(S) RECORDED</div></section>
+<a class="back" href="{{url_for('admin')}}">← Back to Admin Dashboard</a>
+<p class="note">This page lists visits to the Applicant Registration page. Visitors are anonymous. We do not collect their names or IP addresses.</p>
+{% if visitors %}<div class="tablebox"><table><thead><tr><th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visits</th><th>Page</th></tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%d %b %Y, %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%d %b %Y, %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="note">No visits have been recorded yet.</p>{% endif %}
+</main></body></html>
+""", visitors=visitors)
 
 
 @app.route("/admin/logout", methods=["POST"])
