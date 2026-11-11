@@ -245,17 +245,19 @@ def wave_payment():
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     error = None
-    configured_user = os.environ.get("ADMIN_USERNAME")
-    configured_password = os.environ.get("ADMIN_PASSWORD")
+    configured_user = os.environ.get("ADMIN_USERNAME", "").strip()
+    configured_password = os.environ.get("ADMIN_PASSWORD", "").strip()
     if not configured_user or not configured_password:
         return "Admin login is not configured.", 503
     if request.method == "POST":
         if not csrf_valid():
             error = "Your session expired. Refresh and try again."
         else:
-            username = request.form.get("username", "")
-            password = request.form.get("password", "")
-            if hmac.compare_digest(username, configured_user) and hmac.compare_digest(password, configured_password):
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            username_matches = hmac.compare_digest(username.casefold(), configured_user.casefold())
+            password_matches = hmac.compare_digest(password, configured_password)
+            if username_matches and password_matches:
                 session.clear()
                 session["is_admin"] = True
                 session["_csrf_token"] = secrets.token_urlsafe(32)
@@ -264,10 +266,21 @@ def admin_login():
     return render_template_string("""
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin Login | Global Scholarship Hub</title>
-<style>body{font-family:Arial;background:#edf4fc;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}.card{background:white;padding:30px;border-radius:16px;width:100%;max-width:390px;box-shadow:0 12px 36px #173b641a}h1{color:#1456a0;margin-top:0}label{display:block;margin:16px 0 7px;font-weight:bold}input{width:100%;padding:13px;border:1px solid #ccd7e5;border-radius:8px;box-sizing:border-box;font-size:16px}button{width:100%;padding:13px;margin-top:22px;border:0;border-radius:8px;background:#1768bd;color:white;font-weight:bold;font-size:16px}.error{background:#fff0ef;color:#a12a22;padding:10px;border-radius:8px}a{display:block;text-align:center;margin-top:18px;color:#1768bd}</style></head>
+<style>body{font-family:Arial;background:#edf4fc;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}.card{background:white;padding:30px;border-radius:16px;width:100%;max-width:390px;box-shadow:0 12px 36px #173b641a}h1{color:#1456a0;margin-top:0}label{display:block;margin:16px 0 7px;font-weight:bold}input{width:100%;padding:13px;border:1px solid #ccd7e5;border-radius:8px;box-sizing:border-box;font-size:16px}button{width:100%;padding:13px;margin-top:22px;border:0;border-radius:8px;background:#1768bd;color:white;font-weight:bold;font-size:16px}.error{background:#fff0ef;color:#a12a22;padding:10px;border-radius:8px}a{display:block;text-align:center;margin-top:18px;color:#1768bd}.password-row{position:relative}.password-row input{padding-right:56px}.toggle-password{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:42px;height:42px;margin:0;padding:0;border:0;border-radius:7px;background:transparent;color:#1456a0;font-size:22px;cursor:pointer}.toggle-password:focus{outline:2px solid #2376d2}</style></head>
 <body><main class="card"><h1>Admin Login</h1>{% if error %}<p class="error">{{error}}</p>{% endif %}
-<form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}"><label for="username">Username</label><input id="username" name="username" autocomplete="username" required>
-<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required><button type="submit">Log In</button></form><a href="/">Back to registration</a></main></body></html>
+<form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}"><label for="username">Username</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+<label for="password">Password</label><div class="password-row"><input id="password" name="password" type="password" autocomplete="current-password" required><button class="toggle-password" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show password">👁</button></div><button type="submit">Log In</button></form><a href="/">Back to registration</a></main><script>
+const passwordField=document.getElementById("password");
+const togglePassword=document.getElementById("toggle-password");
+togglePassword.addEventListener("click",function(){
+  const show=passwordField.type==="password";
+  passwordField.type=show?"text":"password";
+  togglePassword.textContent=show?"🙈":"👁";
+  togglePassword.setAttribute("aria-label",show?"Hide password":"Show password");
+  togglePassword.setAttribute("title",show?"Hide password":"Show password");
+  togglePassword.setAttribute("aria-pressed",String(show));
+});
+</script></body></html>
 """, error=error, token=csrf_token())
 
 
