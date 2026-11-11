@@ -183,7 +183,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <label for="country">Country Applied To</label><input id="country" name="country" maxlength="100" placeholder="Enter the country" required>
 <label for="program">Program Applied For</label><input id="program" name="program" maxlength="150" placeholder="Enter your course or program" required>
 <label for="degree">Degree Level</label>
-<select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's" {% if selected_degree == "Bachelor's" %}selected{% endif %}>Bachelor's Degree — D500</option><option value="Master's" {% if selected_degree == "Master's" %}selected{% endif %}>Master's Degree — D800</option><option value="PhD" {% if selected_degree == "PhD" %}selected{% endif %}>PhD — D1,300</option></select>
+<select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's" {% if selected_degree == "Bachelor's" %}selected{% endif %}>Bachelor's Degree</option><option value="Master's" {% if selected_degree == "Master's" %}selected{% endif %}>Master's Degree</option><option value="PhD" {% if selected_degree == "PhD" %}selected{% endif %}>PhD</option></select>
 <h2>Payment</h2>
 <div class="wave">
 <div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
