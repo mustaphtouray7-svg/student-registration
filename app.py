@@ -1,6 +1,7 @@
 import hmac
 import os
 import secrets
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from functools import wraps
 
 from flask import Flask, request, render_template_string, redirect, url_for, session
@@ -87,7 +88,18 @@ def security_headers(response):
 @app.route("/", methods=["GET", "POST"])
 def register():
     message = error = None
-    wave_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
+    wave_base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
+    selected_degree = ""
+
+    def payment_url_for_degree(degree_value):
+        amounts = {"Bachelor's": "500", "Master's": "800", "PhD": "1300"}
+        amount = amounts.get(degree_value)
+        if not wave_base_url or not amount:
+            return ""
+        parts = urlsplit(wave_base_url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        query["amount"] = amount
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
     if request.method == "POST":
         if not csrf_valid():
             error = "Your session expired. Refresh the page and try again."
@@ -98,6 +110,7 @@ def register():
             country = request.form.get("country", "").strip()
             program = request.form.get("program", "").strip()
             degree = request.form.get("degree", "").strip()
+            selected_degree = degree
             wave_reference = request.form.get("wave_transaction_reference", "").strip()
 
             if not first_name or len(first_name) > 80:
@@ -127,6 +140,7 @@ def register():
                 db.session.add(applicant)
                 db.session.commit()
                 message = f"Your registration has been received successfully. Your Global Scholarship Hub number is GSH{applicant.id}."
+    wave_url = payment_url_for_degree(selected_degree)
     return render_template_string("""
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -169,18 +183,41 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <label for="country">Country Applied To</label><input id="country" name="country" maxlength="100" placeholder="Enter the country" required>
 <label for="program">Program Applied For</label><input id="program" name="program" maxlength="150" placeholder="Enter your course or program" required>
 <label for="degree">Degree Level</label>
-<select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's">Bachelor's Degree</option><option value="Master's">Master's Degree</option><option value="PhD">PhD</option></select>
+<select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's" {% if selected_degree == "Bachelor's" %}selected{% endif %}>Bachelor's Degree — D500</option><option value="Master's" {% if selected_degree == "Master's" %}selected{% endif %}>Master's Degree — D800</option><option value="PhD" {% if selected_degree == "PhD" %}selected{% endif %}>PhD — D1,300</option></select>
 <h2>Payment</h2>
 <div class="wave">
 <div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
 <div class="wave-title">Wave Payment Only</div>
-{% if wave_url %}<a class="pay" href="{{wave_url}}" target="_blank" rel="noopener noreferrer">Pay with Wave</a>
-{% else %}<span class="pay disabled">Wave payment link will be added shortly</span>{% endif %}
+<div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "D500" if selected_degree == "Bachelor's" else "D800" if selected_degree == "Master's" else "D1,300" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
+<a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{wave_url or '#'}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_blank" rel="noopener noreferrer">Pay with Wave</a>
 </div>
 <button type="submit">Submit Registration</button>
 </form>
 <a class="admin" href="{{url_for('admin_login')}}">Admin Login</a>
-</main></body></html>
+</main>
+<script>
+(function(){
+  const degree = document.getElementById('degree');
+  const pay = document.getElementById('wave-pay');
+  const amount = document.getElementById('payment-amount');
+  const base = {{ (wave_base_url or '')|tojson }};
+  const prices = {"Bachelor's":500,"Master's":800,"PhD":1300};
+  function updatePayment(){
+    const price = prices[degree.value];
+    if(!price || !base){
+      pay.href = '#'; pay.classList.add('disabled'); pay.setAttribute('aria-disabled','true');
+      amount.textContent = 'Select your degree level to see the payment amount'; return;
+    }
+    const url = new URL(base, window.location.href);
+    url.searchParams.set('amount', String(price));
+    pay.href = url.toString(); pay.classList.remove('disabled'); pay.removeAttribute('aria-disabled');
+    amount.textContent = 'Selected payment: D' + price.toLocaleString('en-US');
+  }
+  degree.addEventListener('change', updatePayment);
+  updatePayment();
+})();
+</script>
+</body></html>
 """, message=message, error=error, token=csrf_token(), wave_url=wave_url)
 
 
