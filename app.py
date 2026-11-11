@@ -141,9 +141,11 @@ label{display:block;margin:14px 0 7px;font-weight:700;font-size:14px}
 input,select{width:100%;padding:13px;border:1px solid #d5deea;border-radius:9px;font-size:16px;background:#fff;color:#17243a}
 input:focus,select:focus{outline:2px solid #2376d2}
 .hint{font-size:12px;color:#718096;margin-top:5px}
-.wave{border:1px solid #cfe9dc;background:#f3fbf6;padding:16px;border-radius:12px;margin-top:10px}
-.wave-title{font-weight:800;color:#167447;display:flex;align-items:center;gap:8px}
-.wave p{font-size:13px;color:#526579;line-height:1.5}
+.wave{border:1px solid #d7e8f2;background:#f7fcff;padding:20px;border-radius:12px;margin-top:10px;text-align:center}
+.wave-brand{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:15px}
+.wave-icon{width:38px;height:38px;border-radius:11px;background:#1dc8ff;display:grid;place-items:center;color:#fff;font-size:25px;font-weight:900;line-height:1}
+.wave-word{font-size:27px;font-weight:800;letter-spacing:-1.5px;color:#101820}
+.wave-title{font-weight:800;color:#167447;margin-bottom:14px}
 .pay{display:block;text-align:center;text-decoration:none;background:#16a66a;color:#fff;padding:13px;border-radius:9px;font-weight:800}
 .pay.disabled{background:#9bb8a8;pointer-events:none}
 button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;background:#1768bd;color:white;font-size:16px;font-weight:800;cursor:pointer}
@@ -169,13 +171,12 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <label for="degree">Degree Level</label>
 <select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's">Bachelor's Degree</option><option value="Master's">Master's Degree</option><option value="PhD">PhD</option></select>
 <h2>Payment</h2>
-<div class="wave"><div class="wave-title">● Wave Payment Only</div>
-<p>Use the Wave button below to make your payment. If you have already paid, enter your Wave transaction reference below.</p>
+<div class="wave">
+<div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
+<div class="wave-title">Wave Payment Only</div>
 {% if wave_url %}<a class="pay" href="{{wave_url}}" target="_blank" rel="noopener noreferrer">Pay with Wave</a>
 {% else %}<span class="pay disabled">Wave payment link will be added shortly</span>{% endif %}
 </div>
-<label for="wave_transaction_reference">Wave Transaction Reference <span class="hint">(optional)</span></label>
-<input id="wave_transaction_reference" name="wave_transaction_reference" maxlength="100" placeholder="Enter transaction ID if already paid">
 <button type="submit">Submit Registration</button>
 </form>
 <a class="admin" href="{{url_for('admin_login')}}">Admin Login</a>
@@ -232,9 +233,9 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 <div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s)</p></div>
 <form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
 {% if applicants %}<div class="table-wrap"><table><thead><tr>
-<th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Wave Ref.</th><th>Payment</th><th>Registered</th><th>Action</th>
+<th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Payment</th><th>Registered</th><th>Action</th>
 </tr></thead><tbody>
-{% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td>{{a.wave_transaction_reference or "—"}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
+{% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
 <form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
 </td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
 <p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
