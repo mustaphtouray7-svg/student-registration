@@ -36,6 +36,16 @@ class Student(db.Model):
     phone = db.Column(db.String(30), nullable=False)
 
 
+class WebsiteVisitor(db.Model):
+    """Privacy-minimal visitor analytics; no IP address or personal identity is collected."""
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_key = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    first_visited_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    last_visited_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    visit_count = db.Column(db.Integer, nullable=False, default=1)
+    last_path = db.Column(db.String(200), nullable=False, default="/")
+
+
 class ScholarshipApplicant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     first_name = db.Column(db.String(80), nullable=False)
@@ -92,6 +102,22 @@ def security_headers(response):
 
 @app.route("/", methods=["GET", "POST"])
 def register():
+    if request.method == "GET":
+        visitor_key = session.get("_visitor_key")
+        if not visitor_key:
+            visitor_key = secrets.token_urlsafe(32)
+            session["_visitor_key"] = visitor_key
+            db.session.add(WebsiteVisitor(visitor_key=visitor_key, last_path="/"))
+        else:
+            visitor = WebsiteVisitor.query.filter_by(visitor_key=visitor_key).first()
+            if visitor:
+                visitor.visit_count = (visitor.visit_count or 0) + 1
+                visitor.last_visited_at = db.func.now()
+                visitor.last_path = "/"
+            else:
+                db.session.add(WebsiteVisitor(visitor_key=visitor_key, last_path="/"))
+        db.session.commit()
+
     message = error = None
     wave_base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
     selected_degree = ""
@@ -298,6 +324,7 @@ togglePassword.addEventListener("click",function(){
 @admin_required
 def admin():
     applicants = ScholarshipApplicant.query.order_by(ScholarshipApplicant.created_at.desc()).all()
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
     legacy_count = Student.query.count()
     return render_template_string("""
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -311,7 +338,7 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 .logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
 .pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
 </style></head><body><main class="wrap">
-<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s)</p></div>
+<div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s) · {{visitors|length}} unique visitor(s)</p></div>
 <form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
 {% if applicants %}<div class="table-wrap"><table><thead><tr>
 <th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Payment</th><th>Registered</th><th>Action</th>
@@ -319,6 +346,14 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 {% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
 <form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
 </td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
+
+<h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
+<p class="meta">Unique browsers that opened the applicant registration page. Repeat visits are counted. No IP addresses are collected.</p>
+{% if visitors %}<div class="table-wrap"><table style="min-width:720px"><thead><tr>
+<th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visit Count</th><th>Last Page</th>
+</tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%Y-%m-%d %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%Y-%m-%d %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty">No website visits recorded yet. New visits will appear here.</p>{% endif %}
 <p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
 <p><a href="/">Open applicant registration form</a></p></main></body></html>
 """, applicants=applicants, legacy_count=legacy_count, token=csrf_token())
