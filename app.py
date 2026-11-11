@@ -43,7 +43,6 @@ class ScholarshipApplicant(db.Model):
     country = db.Column(db.String(100), nullable=False)
     program = db.Column(db.String(150), nullable=False)
     degree = db.Column(db.String(20), nullable=False)
-    application_reference = db.Column(db.String(100), nullable=True)
     wave_transaction_reference = db.Column(db.String(100), nullable=True)
     payment_method = db.Column(db.String(20), nullable=False, default="Wave")
     payment_status = db.Column(db.String(20), nullable=False, default="Pending")
@@ -99,7 +98,6 @@ def register():
             country = request.form.get("country", "").strip()
             program = request.form.get("program", "").strip()
             degree = request.form.get("degree", "").strip()
-            application_reference = request.form.get("application_reference", "").strip()
             wave_reference = request.form.get("wave_transaction_reference", "").strip()
 
             if not first_name or len(first_name) > 80:
@@ -114,8 +112,6 @@ def register():
                 error = "Enter the scholarship program you applied for."
             elif degree not in {"Bachelor's", "Master's", "PhD"}:
                 error = "Choose Bachelor's, Master's, or PhD."
-            elif len(application_reference) > 100 or len(wave_reference) > 100:
-                error = "Reference numbers must be 100 characters or fewer."
             else:
                 applicant = ScholarshipApplicant(
                     first_name=first_name,
@@ -124,14 +120,13 @@ def register():
                     country=country,
                     program=program,
                     degree=degree,
-                    application_reference=application_reference or None,
                     wave_transaction_reference=wave_reference or None,
                     payment_method="Wave",
                     payment_status="Pending",
                 )
                 db.session.add(applicant)
                 db.session.commit()
-                message = "Your registration has been received successfully."
+                message = f"Your registration has been received successfully. Your Global Scholarship Hub number is GSH{applicant.id}."
     return render_template_string("""
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -173,8 +168,6 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <label for="program">Program Applied For</label><input id="program" name="program" maxlength="150" placeholder="Enter your course or program" required>
 <label for="degree">Degree Level</label>
 <select id="degree" name="degree" required><option value="">Select degree level</option><option value="Bachelor's">Bachelor's Degree</option><option value="Master's">Master's Degree</option><option value="PhD">PhD</option></select>
-<label for="application_reference">Application Reference Number <span class="hint">(optional)</span></label>
-<input id="application_reference" name="application_reference" maxlength="100" placeholder="Your university application ID">
 <h2>Payment</h2>
 <div class="wave"><div class="wave-title">● Wave Payment Only</div>
 <p>Use the Wave button below to make your payment. If you have already paid, enter your Wave transaction reference below.</p>
@@ -239,9 +232,9 @@ button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:whit
 <div class="top"><div><h1>Global Scholarship Hub</h1><p class="meta">{{applicants|length}} applicant registration(s)</p></div>
 <form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
 {% if applicants %}<div class="table-wrap"><table><thead><tr>
-<th>#</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Application Ref.</th><th>Wave Ref.</th><th>Payment</th><th>Registered</th><th>Action</th>
+<th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Wave Ref.</th><th>Payment</th><th>Registered</th><th>Action</th>
 </tr></thead><tbody>
-{% for a in applicants %}<tr><td>{{a.id}}</td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td>{{a.application_reference or "—"}}</td><td>{{a.wave_transaction_reference or "—"}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
+{% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td>{{a.wave_transaction_reference or "—"}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
 <form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
 </td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
 <p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
