@@ -4,7 +4,7 @@ import secrets
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from functools import wraps
 
-from flask import Flask, request, render_template_string, redirect, url_for, session
+from flask import Flask, request, render_template_string, redirect, url_for, session, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
@@ -75,6 +75,11 @@ def admin_required(view):
             return redirect(url_for("admin_login"))
         return view(*args, **kwargs)
     return wrapped
+
+
+@app.route("/global-scholarship-hub-logo.svg")
+def scholarship_hub_logo():
+    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "global-scholarship-hub-logo.svg")
 
 
 @app.after_request
@@ -148,7 +153,7 @@ def register():
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Global Scholarship Hub | Applicant Registration</title>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:linear-gradient(135deg,#eaf3ff,#f7faff);font-family:Arial,sans-serif;color:#17243a}
+*{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:linear-gradient(rgba(255,255,255,.76),rgba(255,255,255,.76)),url("/global-scholarship-hub-logo.svg") center center/cover fixed no-repeat;font-family:Arial,sans-serif;color:#17243a}
 .card{max-width:620px;margin:24px auto;background:#fff;padding:30px;border-radius:18px;box-shadow:0 14px 45px #1946821f}
 .brand{text-align:center;color:#1768bd;font-size:13px;font-weight:800;letter-spacing:1.3px}
 h1{text-align:center;color:#1456a0;margin:8px 0}.intro{text-align:center;color:#66758a;line-height:1.5;margin:0 0 24px}
