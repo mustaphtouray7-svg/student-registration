@@ -153,10 +153,11 @@ def register():
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Global Scholarship Hub | Applicant Registration</title>
 <style>
-*{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:linear-gradient(rgba(255,255,255,.76),rgba(255,255,255,.76)),url("/global-scholarship-hub-logo.svg") center center/cover fixed no-repeat;font-family:Arial,sans-serif;color:#17243a}
-.card{max-width:620px;margin:24px auto;background:#fff;padding:30px;border-radius:18px;box-shadow:0 14px 45px #1946821f}
-.brand{text-align:center;color:#1768bd;font-size:13px;font-weight:800;letter-spacing:1.3px}
-h1{text-align:center;color:#1456a0;margin:8px 0}.intro{text-align:center;color:#66758a;line-height:1.5;margin:0 0 24px}
+*{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:#eef3f9;font-family:Arial,sans-serif;color:#17243a}
+.card{max-width:620px;margin:24px auto;background:#fff;padding:0;border-radius:18px;overflow:hidden;box-shadow:0 14px 45px #1946821f}
+.registration-banner{padding:38px 28px 30px;text-align:center;color:#fff;background:linear-gradient(rgba(8,35,75,.48),rgba(8,35,75,.72)),url("/global-scholarship-hub-logo.svg") center center/cover no-repeat}
+.brand{text-align:center;color:#fff;font-size:13px;font-weight:800;letter-spacing:1.3px;text-shadow:0 1px 4px #000}
+h1{text-align:center;color:#fff;margin:8px 0;text-shadow:0 2px 5px #000}.intro{text-align:center;color:#fff;line-height:1.5;margin:0;text-shadow:0 1px 4px #000}.form-content{padding:30px}
 h2{font-size:17px;color:#1456a0;margin:25px 0 12px;border-bottom:1px solid #e6edf5;padding-bottom:9px}
 label{display:block;margin:14px 0 7px;font-weight:700;font-size:14px}
 input,select{width:100%;padding:13px;border:1px solid #d5deea;border-radius:9px;font-size:16px;background:#fff;color:#17243a}
@@ -172,12 +173,13 @@ input:focus,select:focus{outline:2px solid #2376d2}
 button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;background:#1768bd;color:white;font-size:16px;font-weight:800;cursor:pointer}
 .notice{padding:13px;border-radius:9px;margin:16px 0;line-height:1.4}.success{background:#e8f7ed;color:#176334}.error{background:#fff0ef;color:#a12a22}
 .admin{display:block;margin-top:22px;text-align:center;color:#1768bd;font-size:13px}
-@media(max-width:520px){body{padding:10px}.card{padding:21px 17px;margin:10px auto}}
+@media(max-width:520px){body{padding:10px}.card{margin:10px auto}.registration-banner{padding:30px 18px 24px}.form-content{padding:21px 17px}}
 </style></head>
 <body><main class="card">
-<div class="brand">GLOBAL SCHOLARSHIP HUB</div>
+<header class="registration-banner"><div class="brand">GLOBAL SCHOLARSHIP HUB</div>
 <h1>Applicant Registration</h1>
-<p class="intro">This form is for students who have already applied for a scholarship. Please enter your details carefully.</p>
+<p class="intro">This form is for students who have already applied for a scholarship. Please enter your details carefully.</p></header>
+<div class="form-content">
 {% if message %}<div class="notice success" role="status">{{message}}</div>{% endif %}
 {% if error %}<div class="notice error" role="alert">{{error}}</div>{% endif %}
 <form method="POST" action="/">
@@ -204,7 +206,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <button type="submit">Submit Registration</button>
 </form>
 <a class="admin" href="{{url_for('admin_login')}}">Admin Login</a>
-</main>
+</div></main>
 <script>
 (function(){
   const degree = document.getElementById('degree');
