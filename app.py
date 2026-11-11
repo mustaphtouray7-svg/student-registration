@@ -151,7 +151,10 @@ def register():
     return render_template_string("""
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Global Scholarship Hub | Applicant Registration</title>
+<title>Applicant Registration</title>
+<meta name="description" content="Global Scholarship Hub applicant registration form.">
+<meta property="og:title" content="Applicant Registration">
+<meta property="og:description" content="Global Scholarship Hub applicant registration form.">
 <style>
 *{box-sizing:border-box}body{margin:0;padding:24px;min-height:100vh;background:#eef3f9;font-family:Arial,sans-serif;color:#17243a}
 .card{max-width:620px;margin:24px auto;background:#fff;padding:0;border-radius:18px;overflow:hidden;box-shadow:0 14px 45px #1946821f}
