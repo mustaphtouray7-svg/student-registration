@@ -103,19 +103,13 @@ def security_headers(response):
 @app.route("/", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
-        visitor_key = session.get("_visitor_key")
-        if not visitor_key:
-            visitor_key = secrets.token_urlsafe(32)
-            session["_visitor_key"] = visitor_key
-            db.session.add(WebsiteVisitor(visitor_key=visitor_key, last_path="/"))
-        else:
-            visitor = WebsiteVisitor.query.filter_by(visitor_key=visitor_key).first()
-            if visitor:
-                visitor.visit_count = (visitor.visit_count or 0) + 1
-                visitor.last_visited_at = db.func.now()
-                visitor.last_path = "/"
-            else:
-                db.session.add(WebsiteVisitor(visitor_key=visitor_key, last_path="/"))
+        # Record every registration-page opening as a separate visit event.
+        # This avoids relying on the Flask login session or browser cookies.
+        db.session.add(WebsiteVisitor(
+            visitor_key=secrets.token_urlsafe(32),
+            visit_count=1,
+            last_path="/",
+        ))
         db.session.commit()
 
     message = error = None
