@@ -125,6 +125,8 @@ def register():
                 error = "Enter the scholarship program you applied for."
             elif degree not in {"Bachelor's", "Master's", "PhD"}:
                 error = "Choose Bachelor's, Master's, or PhD."
+            elif not wave_reference or len(wave_reference) > 100:
+                error = "Complete your Wave payment and enter the transaction reference before submitting."
             else:
                 applicant = ScholarshipApplicant(
                     first_name=first_name,
@@ -135,7 +137,7 @@ def register():
                     degree=degree,
                     wave_transaction_reference=wave_reference or None,
                     payment_method="Wave",
-                    payment_status="Pending",
+                    payment_status="Pending Verification",
                 )
                 db.session.add(applicant)
                 db.session.commit()
@@ -162,7 +164,6 @@ input:focus,select:focus{outline:2px solid #2376d2}
 .wave-title{font-weight:800;color:#167447;margin-bottom:14px}
 .pay{display:block;text-align:center;text-decoration:none;background:#16a66a;color:#fff;padding:13px;border-radius:9px;font-weight:800}
 .pay.disabled{background:#9bb8a8;pointer-events:none}
-.submit-unpaid{display:block;width:100%;margin-top:12px;padding:13px;border:2px solid #1768bd;border-radius:9px;background:#fff;color:#1768bd;font-size:15px;font-weight:800;cursor:pointer}
 button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;background:#1768bd;color:white;font-size:16px;font-weight:800;cursor:pointer}
 .notice{padding:13px;border-radius:9px;margin:16px 0;line-height:1.4}.success{background:#e8f7ed;color:#176334}.error{background:#fff0ef;color:#a12a22}
 .admin{display:block;margin-top:22px;text-align:center;color:#1768bd;font-size:13px}
@@ -191,8 +192,9 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <div class="wave-title">Wave Payment Only</div>
 <div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "D500" if selected_degree == "Bachelor's" else "D800" if selected_degree == "Master's" else "D1,300" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
 <a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{url_for('wave_payment')}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_self">Pay with Wave</a>
-<button type="submit" class="submit-unpaid">Submit Without Paying</button>
-<p class="hint">You can submit your registration now and complete payment later. Your payment status will remain Pending.</p>
+<label for="wave_transaction_reference">Wave Transaction Reference</label>
+<input id="wave_transaction_reference" name="wave_transaction_reference" maxlength="100" placeholder="Enter the reference shown after payment" required>
+<p class="hint">Payment is required. After completing payment in Wave, enter your transaction reference to submit. Your payment will remain pending verification until checked by the admin.</p>
 </div>
 <button type="submit">Submit Registration</button>
 </form>
