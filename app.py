@@ -189,7 +189,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
 <div class="wave-title">Wave Payment Only</div>
 <div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "D500" if selected_degree == "Bachelor's" else "D800" if selected_degree == "Master's" else "D1,300" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
-<a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{wave_url or '#'}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_self">Pay with Wave</a>
+<a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{url_for('wave_payment')}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_self">Pay with Wave</a>
 </div>
 <button type="submit">Submit Registration</button>
 </form>
@@ -200,17 +200,16 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
   const degree = document.getElementById('degree');
   const pay = document.getElementById('wave-pay');
   const amount = document.getElementById('payment-amount');
-  const base = {{ (wave_base_url or '')|tojson }};
   const prices = {"Bachelor's":500,"Master's":800,"PhD":1300};
   function updatePayment(){
     const price = prices[degree.value];
-    if(!price || !base){
-      pay.href = '#'; pay.classList.add('disabled'); pay.setAttribute('aria-disabled','true');
+    if(!price){
+      pay.href = '{{url_for("wave_payment")}}';
+      pay.classList.add('disabled'); pay.setAttribute('aria-disabled','true');
       amount.textContent = 'Select your degree level to see the payment amount'; return;
     }
-    const url = new URL(base, window.location.href);
-    url.searchParams.set('amount', String(price));
-    pay.href = url.toString(); pay.classList.remove('disabled'); pay.removeAttribute('aria-disabled');
+    pay.href = '{{url_for("wave_payment")}}?degree=' + encodeURIComponent(degree.value);
+    pay.classList.remove('disabled'); pay.removeAttribute('aria-disabled');
     amount.textContent = 'Selected payment: D' + price.toLocaleString('en-US');
   }
   degree.addEventListener('change', updatePayment);
@@ -219,6 +218,23 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 </script>
 </body></html>
 """, message=message, error=error, token=csrf_token(), wave_url=wave_url)
+
+
+@app.route("/pay")
+def wave_payment():
+    degree_value = request.args.get("degree", "")
+    amounts = {"Bachelor's": "500", "Master's": "800", "PhD": "1300"}
+    amount = amounts.get(degree_value)
+    base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
+    if not amount:
+        return "Please return to the registration form and select your degree level first.", 400
+    if not base_url:
+        return "Wave payment is not configured. Please contact the site administrator.", 503
+    parts = urlsplit(base_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["amount"] = amount
+    payment_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return redirect(payment_url, code=302)
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
