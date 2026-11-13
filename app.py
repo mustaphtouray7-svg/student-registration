@@ -246,6 +246,318 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
     pay.href = '{{url_for("wave_payment")}}?degree=' + encodeURIComponent(degree.value);
     pay.classList.remove('disabled'); pay.removeAttribute('aria-disabled');
     amount.textContent = 'Selected payment: 
+  updatePayment();
+})();
+</script>
+</body></html>
+""", message=message, error=error, token=csrf_token(), wave_url=wave_url)
+
+
+@app.route("/pay")
+def wave_payment():
+    degree_value = request.args.get("degree", "")
+    amounts = {"Bachelor's": "5", "Master's": "8", "PhD": "12"}
+    amount = amounts.get(degree_value)
+    base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
+    if not amount:
+        return "Please return to the registration form and select your degree level first.", 400
+    if not base_url:
+        return "Wave payment is not configured. Please contact the site administrator.", 503
+    parts = urlsplit(base_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["amount"] = amount
+    payment_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return redirect(payment_url, code=302)
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = None
+    configured_user = os.environ.get("ADMIN_USERNAME", "").strip()
+    configured_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+    if not configured_user or not configured_password:
+        return "Admin login is not configured.", 503
+    if request.method == "POST":
+        if not csrf_valid():
+            error = "Your session expired. Refresh and try again."
+        else:
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            username_matches = hmac.compare_digest(username.casefold(), configured_user.casefold())
+            password_matches = hmac.compare_digest(password, configured_password)
+            if username_matches and password_matches:
+                session.clear()
+                session["is_admin"] = True
+                session["_csrf_token"] = secrets.token_urlsafe(32)
+                return redirect(url_for("admin"))
+            error = "Incorrect username or password."
+    return render_template_string("""
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login | Global Scholarship Hub</title>
+<style>body{font-family:Arial;background:#edf4fc;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}.card{background:white;padding:30px;border-radius:16px;width:100%;max-width:390px;box-shadow:0 12px 36px #173b641a}.brand-logo{width:100%;margin:0 auto 18px;text-align:center}.brand-logo img{display:block;width:100%;max-height:210px;object-fit:contain;border-radius:12px}h1{color:#1456a0;margin-top:0;text-align:center}label{display:block;margin:16px 0 7px;font-weight:bold}input{width:100%;padding:13px;border:1px solid #ccd7e5;border-radius:8px;box-sizing:border-box;font-size:16px}button{width:100%;padding:13px;margin-top:22px;border:0;border-radius:8px;background:#1768bd;color:white;font-weight:bold;font-size:16px}.error{background:#fff0ef;color:#a12a22;padding:10px;border-radius:8px}a{display:block;text-align:center;margin-top:18px;color:#1768bd}.password-row{position:relative}.password-row input{padding-right:56px}.toggle-password{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:42px;height:42px;margin:0;padding:0;border:0;border-radius:7px;background:transparent;color:#1456a0;font-size:22px;cursor:pointer}.toggle-password:focus{outline:2px solid #2376d2}</style></head>
+<body><main class="card"><div class="brand-logo"><img src="/global-scholarship-hub-logo.svg" alt="Global Scholarship Hub logo"></div><h1>Admin Login</h1>{% if error %}<p class="error">{{error}}</p>{% endif %}
+<form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}"><label for="username">Username</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+<label for="password">Password</label><div class="password-row"><input id="password" name="password" type="password" autocomplete="current-password" required><button class="toggle-password" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show password">👁</button></div><button type="submit">Log In</button></form><a href="/">Back to registration</a></main><script>
+const passwordField=document.getElementById("password");
+const togglePassword=document.getElementById("toggle-password");
+togglePassword.addEventListener("click",function(){
+  const show=passwordField.type==="password";
+  passwordField.type=show?"text":"password";
+  togglePassword.textContent=show?"🙈":"👁";
+  togglePassword.setAttribute("aria-label",show?"Hide password":"Show password");
+  togglePassword.setAttribute("title",show?"Hide password":"Show password");
+  togglePassword.setAttribute("aria-pressed",String(show));
+});
+</script></body></html>
+""", error=error, token=csrf_token())
+
+
+@app.route("/admin")
+@admin_required
+def admin():
+    applicants = ScholarshipApplicant.query.order_by(ScholarshipApplicant.created_at.desc()).all()
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
+    legacy_count = Student.query.count()
+    return render_template_string("""
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Applicant Dashboard | Global Scholarship Hub</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;padding:22px;background:#f5f8fc;color:#17243a}.wrap{max-width:1200px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{color:#1456a0}
+.table-wrap{overflow-x:auto;background:white;border-radius:12px;margin-top:20px}table{width:100%;border-collapse:collapse;min-width:1050px}
+th,td{padding:12px;text-align:left;border-bottom:1px solid #e4eaf1;font-size:13px}th{background:#1768bd;color:white}
+button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:white;cursor:pointer}
+.logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
+.pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
+</style></head><body><main class="wrap">
+<div class="top"><div><h1>Global Scholarship Hub</h1><p><a href="{{url_for('admin_visitors')}}" style="display:inline-block;background:#1768bd;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold">OPEN WEBSITE VISITORS ({{visitors|length}})</a></p><p class="meta"><strong>{{visitors|length}} page visit(s)</strong> · {{applicants|length}} applicant registration(s)</p></div>
+<form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
+<h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
+<p class="meta">Every opening of the Applicant Registration page is listed below. Visitor numbers are anonymous; no IP addresses are collected.</p>
+{% if visitors %}<div class="table-wrap"><table style="min-width:720px"><thead><tr>
+<th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visit Count</th><th>Last Page</th>
+</tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%Y-%m-%d %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%Y-%m-%d %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty">No website visits recorded yet. New visits will appear here.</p>{% endif %}
+<p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
+{% if applicants %}<div class="table-wrap"><table><thead><tr>
+<th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Payment</th><th>Registered</th><th>Action</th>
+</tr></thead><tbody>
+{% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
+<form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
+</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
+
+
+<p><a href="/">Open applicant registration form</a></p></main></body></html>
+""", applicants=applicants, legacy_count=legacy_count, token=csrf_token())
+
+
+@app.route("/admin/visitors")
+@admin_required
+def admin_visitors():
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
+    return render_template_string("""
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website Visitors | Global Scholarship Hub</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:18px;background:#f2f6fc;color:#17243a}
+main{max-width:900px;margin:auto}.heading{background:#1456a0;color:white;padding:22px;border-radius:14px}
+.heading h1{margin:0 0 8px;font-size:25px}.count{font-size:18px;font-weight:bold}
+.back{display:inline-block;margin:18px 0;padding:13px 17px;background:#1768bd;color:white;text-decoration:none;border-radius:9px;font-weight:bold}
+.note{background:#e6f0ff;padding:13px;border-radius:9px;line-height:1.5}
+table{width:100%;border-collapse:collapse;background:white;margin-top:16px}
+th,td{padding:13px 10px;text-align:left;border-bottom:1px solid #e3eaf3;font-size:14px}
+th{background:#1768bd;color:white}.tablebox{overflow-x:auto;border-radius:10px}
+@media(max-width:600px){body{padding:10px}.heading h1{font-size:21px}th,td{font-size:12px;padding:11px 8px}}
+</style></head><body><main>
+<section class="heading"><h1>GLOBAL SCHOLARSHIP HUB</h1><div class="count">{{visitors|length}} WEBSITE VISIT(S) RECORDED</div></section>
+<a class="back" href="{{url_for('admin')}}">← Back to Admin Dashboard</a>
+<p class="note">This page lists visits to the Applicant Registration page. Visitors are anonymous. We do not collect their names or IP addresses.</p>
+{% if visitors %}<div class="tablebox"><table><thead><tr><th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visits</th><th>Page</th></tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%d %b %Y, %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%d %b %Y, %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="note">No visits have been recorded yet.</p>{% endif %}
+</main></body></html>
+""", visitors=visitors)
+
+
+@app.route("/admin/logout", methods=["POST"])
+@admin_required
+def admin_logout():
+    if not csrf_valid():
+        return "Invalid request token.", 400
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin/applicant/<int:applicant_id>/delete", methods=["POST"])
+@admin_required
+def delete_applicant(applicant_id):
+    if not csrf_valid():
+        return "Invalid request token.", 400
+    applicant = db.session.get(ScholarshipApplicant, applicant_id)
+    if applicant:
+        db.session.delete(applicant)
+        db.session.commit()
+    return redirect(url_for("admin"))
+
+
+if __name__ == "__main__":
+    app.run(debug=False)
+
+
+@app.route("/pay")
+def wave_payment():
+    degree_value = request.args.get("degree", "")
+    amounts = {"Bachelor's": "5", "Master's": "8", "PhD": "12"}
+    amount = amounts.get(degree_value)
+    base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
+    if not amount:
+        return "Please return to the registration form and select your degree level first.", 400
+    if not base_url:
+        return "Wave payment is not configured. Please contact the site administrator.", 503
+    parts = urlsplit(base_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["amount"] = amount
+    payment_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+    return redirect(payment_url, code=302)
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    error = None
+    configured_user = os.environ.get("ADMIN_USERNAME", "").strip()
+    configured_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+    if not configured_user or not configured_password:
+        return "Admin login is not configured.", 503
+    if request.method == "POST":
+        if not csrf_valid():
+            error = "Your session expired. Refresh and try again."
+        else:
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            username_matches = hmac.compare_digest(username.casefold(), configured_user.casefold())
+            password_matches = hmac.compare_digest(password, configured_password)
+            if username_matches and password_matches:
+                session.clear()
+                session["is_admin"] = True
+                session["_csrf_token"] = secrets.token_urlsafe(32)
+                return redirect(url_for("admin"))
+            error = "Incorrect username or password."
+    return render_template_string("""
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Login | Global Scholarship Hub</title>
+<style>body{font-family:Arial;background:#edf4fc;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}.card{background:white;padding:30px;border-radius:16px;width:100%;max-width:390px;box-shadow:0 12px 36px #173b641a}.brand-logo{width:100%;margin:0 auto 18px;text-align:center}.brand-logo img{display:block;width:100%;max-height:210px;object-fit:contain;border-radius:12px}h1{color:#1456a0;margin-top:0;text-align:center}label{display:block;margin:16px 0 7px;font-weight:bold}input{width:100%;padding:13px;border:1px solid #ccd7e5;border-radius:8px;box-sizing:border-box;font-size:16px}button{width:100%;padding:13px;margin-top:22px;border:0;border-radius:8px;background:#1768bd;color:white;font-weight:bold;font-size:16px}.error{background:#fff0ef;color:#a12a22;padding:10px;border-radius:8px}a{display:block;text-align:center;margin-top:18px;color:#1768bd}.password-row{position:relative}.password-row input{padding-right:56px}.toggle-password{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:42px;height:42px;margin:0;padding:0;border:0;border-radius:7px;background:transparent;color:#1456a0;font-size:22px;cursor:pointer}.toggle-password:focus{outline:2px solid #2376d2}</style></head>
+<body><main class="card"><div class="brand-logo"><img src="/global-scholarship-hub-logo.svg" alt="Global Scholarship Hub logo"></div><h1>Admin Login</h1>{% if error %}<p class="error">{{error}}</p>{% endif %}
+<form method="POST"><input type="hidden" name="_csrf_token" value="{{token}}"><label for="username">Username</label><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+<label for="password">Password</label><div class="password-row"><input id="password" name="password" type="password" autocomplete="current-password" required><button class="toggle-password" id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show password">👁</button></div><button type="submit">Log In</button></form><a href="/">Back to registration</a></main><script>
+const passwordField=document.getElementById("password");
+const togglePassword=document.getElementById("toggle-password");
+togglePassword.addEventListener("click",function(){
+  const show=passwordField.type==="password";
+  passwordField.type=show?"text":"password";
+  togglePassword.textContent=show?"🙈":"👁";
+  togglePassword.setAttribute("aria-label",show?"Hide password":"Show password");
+  togglePassword.setAttribute("title",show?"Hide password":"Show password");
+  togglePassword.setAttribute("aria-pressed",String(show));
+});
+</script></body></html>
+""", error=error, token=csrf_token())
+
+
+@app.route("/admin")
+@admin_required
+def admin():
+    applicants = ScholarshipApplicant.query.order_by(ScholarshipApplicant.created_at.desc()).all()
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
+    legacy_count = Student.query.count()
+    return render_template_string("""
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Applicant Dashboard | Global Scholarship Hub</title>
+<style>
+body{font-family:Arial,sans-serif;margin:0;padding:22px;background:#f5f8fc;color:#17243a}.wrap{max-width:1200px;margin:auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}h1{color:#1456a0}
+.table-wrap{overflow-x:auto;background:white;border-radius:12px;margin-top:20px}table{width:100%;border-collapse:collapse;min-width:1050px}
+th,td{padding:12px;text-align:left;border-bottom:1px solid #e4eaf1;font-size:13px}th{background:#1768bd;color:white}
+button{padding:8px 12px;border:0;border-radius:6px;background:#b83232;color:white;cursor:pointer}
+.logout{background:#1768bd}a{color:#1768bd}.empty{padding:22px;background:white;border-radius:10px;margin-top:20px}
+.pending{color:#996515;font-weight:bold}.meta{color:#64748b;font-size:13px}
+</style></head><body><main class="wrap">
+<div class="top"><div><h1>Global Scholarship Hub</h1><p><a href="{{url_for('admin_visitors')}}" style="display:inline-block;background:#1768bd;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:bold">OPEN WEBSITE VISITORS ({{visitors|length}})</a></p><p class="meta"><strong>{{visitors|length}} page visit(s)</strong> · {{applicants|length}} applicant registration(s)</p></div>
+<form method="POST" action="{{url_for('admin_logout')}}"><input type="hidden" name="_csrf_token" value="{{token}}"><button class="logout" type="submit">Log Out</button></form></div>
+<h2 style="color:#1456a0;margin-top:34px">Website Visitors</h2>
+<p class="meta">Every opening of the Applicant Registration page is listed below. Visitor numbers are anonymous; no IP addresses are collected.</p>
+{% if visitors %}<div class="table-wrap"><table style="min-width:720px"><thead><tr>
+<th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visit Count</th><th>Last Page</th>
+</tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%Y-%m-%d %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%Y-%m-%d %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="empty">No website visits recorded yet. New visits will appear here.</p>{% endif %}
+<p class="meta">Older student-registration records retained in the database: {{legacy_count}}.</p>
+{% if applicants %}<div class="table-wrap"><table><thead><tr>
+<th>GSH Number</th><th>First Name</th><th>Second Name</th><th>Phone</th><th>Country</th><th>Program</th><th>Degree</th><th>Payment</th><th>Registered</th><th>Action</th>
+</tr></thead><tbody>
+{% for a in applicants %}<tr><td><strong>GSH{{a.id}}</strong></td><td>{{a.first_name}}</td><td>{{a.second_name}}</td><td>{{a.phone}}</td><td>{{a.country}}</td><td>{{a.program}}</td><td>{{a.degree}}</td><td class="pending">{{a.payment_status}}</td><td>{{a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "—"}}</td><td>
+<form method="POST" action="{{url_for('delete_applicant',applicant_id=a.id)}}" onsubmit="return confirm('Delete this applicant record?')"><input type="hidden" name="_csrf_token" value="{{token}}"><button type="submit">Delete</button></form>
+</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="empty">No applicant registrations yet.</p>{% endif %}
+
+
+<p><a href="/">Open applicant registration form</a></p></main></body></html>
+""", applicants=applicants, legacy_count=legacy_count, token=csrf_token())
+
+
+@app.route("/admin/visitors")
+@admin_required
+def admin_visitors():
+    visitors = WebsiteVisitor.query.order_by(WebsiteVisitor.last_visited_at.desc()).all()
+    return render_template_string("""
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Website Visitors | Global Scholarship Hub</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:18px;background:#f2f6fc;color:#17243a}
+main{max-width:900px;margin:auto}.heading{background:#1456a0;color:white;padding:22px;border-radius:14px}
+.heading h1{margin:0 0 8px;font-size:25px}.count{font-size:18px;font-weight:bold}
+.back{display:inline-block;margin:18px 0;padding:13px 17px;background:#1768bd;color:white;text-decoration:none;border-radius:9px;font-weight:bold}
+.note{background:#e6f0ff;padding:13px;border-radius:9px;line-height:1.5}
+table{width:100%;border-collapse:collapse;background:white;margin-top:16px}
+th,td{padding:13px 10px;text-align:left;border-bottom:1px solid #e3eaf3;font-size:14px}
+th{background:#1768bd;color:white}.tablebox{overflow-x:auto;border-radius:10px}
+@media(max-width:600px){body{padding:10px}.heading h1{font-size:21px}th,td{font-size:12px;padding:11px 8px}}
+</style></head><body><main>
+<section class="heading"><h1>GLOBAL SCHOLARSHIP HUB</h1><div class="count">{{visitors|length}} WEBSITE VISIT(S) RECORDED</div></section>
+<a class="back" href="{{url_for('admin')}}">← Back to Admin Dashboard</a>
+<p class="note">This page lists visits to the Applicant Registration page. Visitors are anonymous. We do not collect their names or IP addresses.</p>
+{% if visitors %}<div class="tablebox"><table><thead><tr><th>Visitor</th><th>First Visited</th><th>Last Visited</th><th>Visits</th><th>Page</th></tr></thead><tbody>
+{% for v in visitors %}<tr><td>Visitor #{{v.id}}</td><td>{{v.first_visited_at.strftime("%d %b %Y, %H:%M") if v.first_visited_at else "—"}}</td><td>{{v.last_visited_at.strftime("%d %b %Y, %H:%M") if v.last_visited_at else "—"}}</td><td>{{v.visit_count}}</td><td>{{v.last_path}}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="note">No visits have been recorded yet.</p>{% endif %}
+</main></body></html>
+""", visitors=visitors)
+
+
+@app.route("/admin/logout", methods=["POST"])
+@admin_required
+def admin_logout():
+    if not csrf_valid():
+        return "Invalid request token.", 400
+    session.clear()
+    return redirect(url_for("admin_login"))
+
+
+@app.route("/admin/applicant/<int:applicant_id>/delete", methods=["POST"])
+@admin_required
+def delete_applicant(applicant_id):
+    if not csrf_valid():
+        return "Invalid request token.", 400
+    applicant = db.session.get(ScholarshipApplicant, applicant_id)
+    if applicant:
+        db.session.delete(applicant)
+        db.session.commit()
+    return redirect(url_for("admin"))
+
+
+if __name__ == "__main__":
+    app.run(debug=False)
+ + price.toLocaleString('en-US');
   }
   degree.addEventListener('change', updatePayment);
   updatePayment();
