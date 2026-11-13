@@ -117,7 +117,7 @@ def register():
     selected_degree = ""
 
     def payment_url_for_degree(degree_value):
-        amounts = {"Bachelor's": "500", "Master's": "800", "PhD": "1300"}
+        amounts = {"Bachelor's": "5", "Master's": "8", "PhD": "12"}
         amount = amounts.get(degree_value)
         if not wave_base_url or not amount:
             return ""
@@ -220,7 +220,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
 <div class="wave">
 <div class="wave-brand" aria-label="Wave"><span class="wave-icon" aria-hidden="true">w</span><span class="wave-word">wave</span></div>
 <div class="wave-title">Wave Payment Only</div>
-<div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "D500" if selected_degree == "Bachelor's" else "D800" if selected_degree == "Master's" else "D1,300" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
+<div id="payment-amount" class="hint" aria-live="polite">{% if wave_url %}Selected payment: {{ "$5" if selected_degree == "Bachelor's" else "$8" if selected_degree == "Master's" else "$12" }}{% else %}Select your degree level to see the payment amount{% endif %}</div>
 <a id="wave-pay" class="pay{% if not wave_url %} disabled{% endif %}" href="{{url_for('wave_payment')}}" {% if not wave_url %}aria-disabled="true"{% endif %} target="_self">Pay with Wave</a>
 <label for="wave_transaction_reference">Wave Transaction Reference</label>
 <input id="wave_transaction_reference" name="wave_transaction_reference" maxlength="100" placeholder="Enter the reference shown after payment" required>
@@ -235,7 +235,7 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
   const degree = document.getElementById('degree');
   const pay = document.getElementById('wave-pay');
   const amount = document.getElementById('payment-amount');
-  const prices = {"Bachelor's":500,"Master's":800,"PhD":1300};
+  const prices = {"Bachelor's":5,"Master's":8,"PhD":12};
   function updatePayment(){
     const price = prices[degree.value];
     if(!price){
