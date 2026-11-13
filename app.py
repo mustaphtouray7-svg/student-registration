@@ -245,7 +245,9 @@ button{width:100%;margin-top:24px;padding:15px;border:0;border-radius:9px;backgr
     }
     pay.href = '{{url_for("wave_payment")}}?degree=' + encodeURIComponent(degree.value);
     pay.classList.remove('disabled'); pay.removeAttribute('aria-disabled');
-    amount.textContent = 'Selected payment: 
+    amount.textContent = 'Selected payment: $' + price.toLocaleString('en-US');
+  }
+  degree.addEventListener('change', updatePayment);
   updatePayment();
 })();
 </script>
