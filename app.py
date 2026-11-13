@@ -419,7 +419,7 @@ if __name__ == "__main__":
 @app.route("/pay")
 def wave_payment():
     degree_value = request.args.get("degree", "")
-    amounts = {"Bachelor's": "500", "Master's": "800", "PhD": "1300"}
+    amounts = {"Bachelor's": "5", "Master's": "8", "PhD": "12"}
     amount = amounts.get(degree_value)
     base_url = os.environ.get("WAVE_PAYMENT_URL", "").strip()
     if not amount:
